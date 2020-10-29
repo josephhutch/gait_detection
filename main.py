@@ -7,6 +7,8 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torch.utils.data import Dataset, DataLoader
 import pdb
+from data_loaders import get_training_dataloader, get_test_dataloader
+
 
 class VAE(nn.Module):
     def __init__(self):
@@ -39,26 +41,6 @@ class VAE(nn.Module):
         z = self.reparameterize(mu, logvar)
         return self.decode(z), mu, logvar
 
-class GaitData(Dataset):
-    def __init__(self):
-        overlap = 0.2
-        num_samples = 4 * 40 # 4seconds at 40Hz
-        
-        # will need to load data from all files
-        # x_data_files = Path('./data/TrainingData')
-        x_data = pd.read_csv('data/TrainingData/subject_001_01__x.csv', dtype=np.float32, header=None)
-        self.x = np.array([x_data[i:i+num_samples].to_numpy().flatten() for i in range(int(len(x_data)/num_samples))])
-        
-
-    def __len__(self):
-        return(len(self.x))
-
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-
-        return self.x[idx]
-
 
 # Parse Args
 
@@ -85,8 +67,7 @@ device = torch.device("cuda" if args.cuda else "cpu")
 
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
-train_loader = torch.utils.data.DataLoader(
-    GaitData(),batch_size=args.batch_size, shuffle=True, **kwargs)
+train_loader = get_training_dataloader(batch_size=args.batch_size, kwargs=kwargs)
 
 # Create Model
 
@@ -130,6 +111,7 @@ def train(epoch):
 def test(epoch):
     model.eval()
     test_loss = 0
+    test_loader = get_test_dataloader()
     with torch.no_grad():
         for i, (data, _) in enumerate(test_loader):
             data = data.to(device)
