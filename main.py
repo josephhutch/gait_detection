@@ -8,39 +8,8 @@ from torch.nn import functional as F
 from torch.utils.data import Dataset, DataLoader
 import pdb
 from data_loaders import get_training_dataloader, get_test_dataloader
-
-
-class VAE(nn.Module):
-    def __init__(self):
-        super(VAE, self).__init__()
-
-        # input 4 seconds of data at 40Hz over 6 channels (3 gyro, 3 accel)
-        input_size = 4 * 40 * 6
-
-        self.fc1 = nn.Linear(input_size, 400)
-        self.fc21 = nn.Linear(400, 20)
-        self.fc22 = nn.Linear(400, 20)
-        self.fc3 = nn.Linear(20, 400)
-        self.fc4 = nn.Linear(400, input_size)
-
-    def encode(self, x):
-        h1 = F.relu(self.fc1(x))
-        return self.fc21(h1), self.fc22(h1)
-
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5*logvar)
-        eps = torch.randn_like(std)
-        return mu + eps*std
-
-    def decode(self, z):
-        h3 = F.relu(self.fc3(z))
-        return torch.sigmoid(self.fc4(h3))
-
-    def forward(self, x):
-        mu, logvar = self.encode(x)
-        z = self.reparameterize(mu, logvar)
-        return self.decode(z), mu, logvar
-
+from pathing import *
+from VAE import VAE, Latent3VAE
 
 # Parse Args
 
@@ -71,7 +40,8 @@ train_loader = get_training_dataloader(batch_size=args.batch_size, kwargs=kwargs
 
 # Create Model
 
-model = VAE().to(device)
+# model = VAE().to(device)
+model = Latent3VAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 
@@ -136,3 +106,4 @@ if __name__ == "__main__":
         #     sample = model.decode(sample).cpu()
         #     save_image(sample.view(64, 1, 28, 28),
         #                'results/sample_' + str(epoch) + '.png')
+    torch.save(model, os.path.join(get_model_dir(), 'latent_test.pt'))
