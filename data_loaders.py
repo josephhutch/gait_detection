@@ -1,56 +1,65 @@
 import os
+import glob
 import torch
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from pathing import get_training_dir, get_testing_dir
+import pdb
 
 
 class GaitData(Dataset):
     def __init__(self, dirpath, limit=None):
         overlap = 0.2
         num_samples = 4 * 40  # 4seconds at 40Hz
-        self.x = []
-        self.x_times = []
-        self.y = []
-        self.y_times = []
 
-        # will need to load data from all files
-        files = os.listdir(dirpath)
-        for i in range(0, len(files), 4):
-            if limit is not None:
-                if limit <= i/4:
-                    break
+        # Get all filenames for each file type (x, x_time, y, y_time)
+        x_filenames = sorted(glob.glob(dirpath + "/*x.csv"))
+        x_time_filenames = sorted(glob.glob(dirpath + "/*x_time.csv"))
+        y_filenames = sorted(glob.glob(dirpath + "/*y.csv"))
+        y_time_filenames = sorted(glob.glob(dirpath + "/*y_time.csv"))
 
-            x, x_time, y, y_time = files[i:i+4]
-            x_data = pd.read_csv(os.path.join(dirpath, x), dtype=np.float32, header=None)
-            x_data = np.array(
-            [x_data[i:i + num_samples].to_numpy().flatten() for i in range(int(len(x_data) / num_samples))])
-            self.x.append(x_data)
+        x_cols = ['x1','x2','x3','x4','x5','x6']
 
-            x_timestamps = pd.read_csv(os.path.join(dirpath, x_time), dtype=np.float32, header=None)
-            x_timestamps = np.array(
-                [x_timestamps[i:i + num_samples].to_numpy().flatten() for i in range(int(len(x_timestamps) / num_samples))])
-            self.x_times.append(x_timestamps)
+        data_df = []
 
-            y_data = pd.read_csv(os.path.join(dirpath, y), dtype=np.float32, header=None)
-            y_data = np.array(
-                [y_data[i:i + num_samples].to_numpy().flatten() for i in range(int(len(y_data) / num_samples))])
-            self.y.append(y_data)
+        # Combine all files into one dataframe per type
+        for x_fn, xt_fn, y_fn, yt_fn in zip(x_filenames, x_time_filenames, y_filenames, y_time_filenames):
+            x_df = pd.read_csv(x_fn, dtype=np.float32, names=x_cols)
+            xt_df = pd.read_csv(xt_fn, dtype=np.float32, names=['time'])
+            y_df = pd.read_csv(y_fn, dtype=np.float32, names=['y'])
+            yt_df = pd.read_csv(yt_fn, dtype=np.float32, names=['time'])
 
-            y_timestamps = pd.read_csv(os.path.join(dirpath, y_time), dtype=np.float32, header=None)
-            y_timestamps = np.array(
-                [y_timestamps[i:i + num_samples].to_numpy().flatten() for i in range(int(len(y_timestamps) / num_samples))])
-            self.y_times.append(y_timestamps)
+            x_combined_df = pd.concat([x_df, xt_df], axis=1)
+            y_combined_df = pd.concat([y_df, yt_df], axis=1)
+
+            # aligns time series data by filling left
+            merged_x_y_df = pd.merge_asof(x_combined_df, y_combined_df, on='time')
+
+            # assuming all NaN are in column y at the begining, fill them with y[0]
+            data_df.append(merged_x_y_df.fillna(y_df.iat[0,0]))
+
+        # Combine all files into one datatype for x and y
+        x_data = []
+        y_data = []
+
+        for trial in data_df:
+            x_data.append(np.array([trial[x_cols][i:i + num_samples].to_numpy().flatten() for i in range(int(len(trial) / num_samples))]))
+            y_data.append(np.array([trial.at[i*num_samples+int(num_samples/2),'y'] for i in range(int(len(trial) / num_samples))]))
+
+        self.x = np.concatenate(x_data)
+        self.y = np.concatenate(y_data)
+
 
     def __len__(self):
-        return (len(self.x[1]))
+        return (len(self.x))
+
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        return self.x[1][idx]
+        return (self.x[idx], self.y[idx])
 
 
 def get_training_dataloader(batch_size, kwargs):
