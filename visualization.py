@@ -6,15 +6,15 @@ from pathing import *
 from data_loaders import get_test_dataloader, get_training_dataloader
 from VAE import VAE
 
-def load_model(filename):
+def load_model(filename, device):
     path = os.path.join(get_model_dir(), filename)
-    model = torch.load(path)
-    model.to('cpu')
+    model = torch.load(path, map_location=device)
     return model.eval()
 
 
 def in_out_comparison(filename, test=False):
-    model = load_model(filename)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = load_model(filename, device)
     if test:
         dataloader = get_test_dataloader(batch_size=1, kwargs={'num_workers': 1})
     else:
@@ -36,7 +36,9 @@ def in_out_comparison(filename, test=False):
 
 
 def sample(filename):
-    model = load_model(filename)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = load_model(filename, device)
+
     dataloader = get_training_dataloader(batch_size=1, kwargs={'num_workers': 1})
     for data,l in dataloader:
         example_z = model.encode(data)
@@ -44,6 +46,35 @@ def sample(filename):
     z = torch.rand([2,20])
 
 
+def latentVisualization(filename):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = load_model(filename, device)
+
+    kwargs = {'num_workers': 1, 'pin_memory': True} if torch.cuda.is_available() else {}
+    dataloader = get_training_dataloader(batch_size=1, kwargs=kwargs)
+
+    z_x = []
+    z_y = []
+    z_z = []
+    color = []
+    colors = ['r','b','g','y']
+
+    for data, label in dataloader:
+        data = data.to(device)
+        mu, logvar = model.encode(data)
+        z = model.reparameterize(mu, logvar).tolist()[0]
+        z_x.append(z[0])
+        z_y.append(z[1])
+        z_z.append(z[2])
+        color.append(colors[int(label.item())])
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(z_x, z_y, z_z, c=color)
+    plt.show()
+
+
 if __name__ == '__main__':
     # in_out_comparison('300_epoch_basic.pt')
+    # latentVisualization('latent_test.pt')
     sample('300_epoch_basic.pt')
