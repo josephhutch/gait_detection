@@ -39,11 +39,18 @@ def sample(filename):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_model(filename, device)
 
-    dataloader = get_training_dataloader(batch_size=1, kwargs={'num_workers': 1})
-    for data,l in dataloader:
-        example_z = model.encode(data)
-        break
-    z = torch.rand([2,20])
+    with torch.no_grad():
+        sample = torch.randn(5, 20).to(device)
+        sample = model.decode(sample).cpu()
+        for s in sample:
+            t = np.linspace(0,4,4*40)
+            x = s.reshape([6,160]).detach().numpy()
+            fig, ax = plt.subplots(nrows=1, ncols=1)
+            for channel in x:
+                ax.plot(t,channel)
+            ax.set(xlabel='Time(s)', ylabel="Magnitude", title='Sampled Signals')
+            plt.show()
+
 
 
 def latentVisualization(filename):
