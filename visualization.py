@@ -35,13 +35,15 @@ def in_out_comparison(filename, test=False):
         plt.show()
 
 
-def sample(filename):
+def sample(filename, plot=True):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_model(filename, device)
 
     with torch.no_grad():
         sample = torch.randn(5, 20).to(device)
         sample = model.decode(sample).cpu()
+        if not plot:
+            return sample
         for s in sample:
             t = np.linspace(0,4,4*40)
             x = s.reshape([6,160]).detach().numpy()
@@ -81,7 +83,35 @@ def latentVisualization(filename):
     plt.show()
 
 
+def sample_and_closest_real(filename):
+    samp = sample(filename, plot=False)
+    kwargs = {'num_workers': 1, 'pin_memory': True} if torch.cuda.is_available() else {}
+    dataloader = get_training_dataloader(batch_size=1, kwargs=kwargs)
+    dataset = dataloader.dataset.x
+    lenght = len(dataset)
+    t = np.linspace(0, 4, 4 * 40)
+    for s in samp:
+        rmse = torch.sqrt(torch.mean((s.repeat(lenght,1) - dataset)**2, axis=0))
+        index = np.argmin(rmse)
+        closest = dataset[index]
+        s = s.reshape([6,160])
+        closest = closest.reshape([6,160])
+        fig, ax = plt.subplots(nrows=2, ncols=1)
+        for channel1, channel2 in zip(s, closest):
+            ax[0].plot(t, channel1)
+            ax[1].plot(t, channel2)
+        ax[1].set(xlabel='Time(s)', ylabel="Magnitude", title='Closest Real Signal')
+        ax[0].set(xlabel='Time(s)', ylabel="Magnitude", title='Sampled Signal')
+        plt.show()
+
+
+
+
+
+
+
 if __name__ == '__main__':
     # in_out_comparison('300_epoch_basic.pt')
     # latentVisualization('latent_test.pt')
-    sample('300_epoch_basic.pt')
+    # sample('300_epoch_basic.pt')
+    sample_and_closest_real('300_epoch_basic.pt')
