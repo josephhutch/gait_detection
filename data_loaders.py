@@ -3,7 +3,7 @@ import glob
 import torch
 import numpy as np
 import pandas as pd
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 from pathing import get_training_dir, get_testing_dir
 import pdb
 
@@ -66,13 +66,25 @@ def get_training_dataloader(batch_size, kwargs):
     training_dir = get_training_dir()
     dataset = GaitData(dirpath=training_dir)
     dataloader = torch.utils.data.DataLoader(
-    dataset, batch_size=batch_size, shuffle=True, **kwargs)
+            dataset, batch_size=batch_size, shuffle=True, **kwargs)
     return dataloader
+
+def get_train_test_dataloaders(batch_size, kwargs):
+    training_dir = get_training_dir()
+    dataset = GaitData(dirpath=training_dir)
+    lengths = [int(len(dataset)*0.8), int(len(dataset)*0.2)]
+    trainDS, testDS = random_split(dataset, lengths)
+
+    trainloader = torch.utils.data.DataLoader(
+            trainDS, batch_size=batch_size, shuffle=True, **kwargs)
+    testloader = torch.utils.data.DataLoader(
+            testDS, batch_size=batch_size, shuffle=True, **kwargs)
+    return (trainloader, testloader)
 
 
 def get_test_dataloader(batch_size, kwargs):
     test_dir = get_testing_dir()
     dataset = GaitData(dirpath=test_dir)
     dataloader = torch.utils.data.DataLoader(
-    dataset, batch_size=batch_size, shuffle=True, **kwargs)
+            dataset, batch_size=batch_size, shuffle=True, **kwargs)
     return dataloader

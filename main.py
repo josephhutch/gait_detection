@@ -7,7 +7,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torch.utils.data import Dataset, DataLoader
 import pdb
-from data_loaders import get_training_dataloader, get_test_dataloader
+from data_loaders import get_training_dataloader, get_test_dataloader, get_train_test_dataloaders
 from pathing import *
 from VAE import VAE, Latent3VAE
 
@@ -36,7 +36,8 @@ device = torch.device("cuda" if args.cuda else "cpu")
 
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
-train_loader = get_training_dataloader(batch_size=args.batch_size, kwargs=kwargs)
+(train_loader, test_loader) = get_train_test_dataloaders(batch_size=args.batch_size, kwargs=kwargs)
+# train_loader = get_training_dataloader(batch_size=args.batch_size, kwargs=kwargs)
 
 # Create Model
 
@@ -81,18 +82,17 @@ def train(epoch):
 def test(epoch):
     model.eval()
     test_loss = 0
-    test_loader = get_test_dataloader()
     with torch.no_grad():
         for i, (data, _) in enumerate(test_loader):
             data = data.to(device)
             recon_batch, mu, logvar = model(data)
             test_loss += loss_function(recon_batch, data, mu, logvar).item()
-            if i == 0:
-                n = min(data.size(0), 8)
-                comparison = torch.cat([data[:n],
-                                      recon_batch.view(args.batch_size, 1, 28, 28)[:n]])
-                save_image(comparison.cpu(),
-                         'results/reconstruction_' + str(epoch) + '.png', nrow=n)
+            # if i == 0:
+            #     n = min(data.size(0), 8)
+            #     comparison = torch.cat([data[:n],
+            #                           recon_batch.view(args.batch_size, 1, 28, 28)[:n]])
+            #     save_image(comparison.cpu(),
+            #              'results/reconstruction_' + str(epoch) + '.png', nrow=n)
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
@@ -100,7 +100,7 @@ def test(epoch):
 if __name__ == "__main__":
     for epoch in range(1, args.epochs + 1):
         train(epoch)
-        # test(epoch)
+        test(epoch)
         # with torch.no_grad():
         #     sample = torch.randn(64, 20).to(device)
         #     sample = model.decode(sample).cpu()
