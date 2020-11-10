@@ -1,6 +1,13 @@
 import numpy as np
 import pandas as pd
 from hmmlearn import hmm
+from data_loaders import GaitData
+from visualization import load_model
+from pathing import get_training_dir
+import pdb
+import torch
+from torch.utils import data
+from sklearn.metrics import classification_report
 
 # POTENTIAL IMPROVEMENTS
 #   - Use MOG model for hmm instead of gaussian
@@ -17,13 +24,52 @@ def getTestDf():
     df = pd.concat([dfNums,dfLabels], axis=1)
     return pd.concat([df,df])
 
+def getEncodedData(model_file, ds):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = load_model(model_file, device)
 
-# FOR TRAINING
-# Use trained VAE to get compressed data with labels
-#   the df should be formatted so that each latent feature gets a column
-#   and the corresponding y label should be in column 'y' (only manually named column)
-def getCompressedDataWithLabels():
-    pass
+    kwargs = {}
+
+    dloader = torch.utils.data.DataLoader(
+        ds, batch_size=1, shuffle=False, **kwargs)
+
+    # pdb.set_trace()
+
+    codedData = np.empty((len(ds), 20))
+
+    model.eval()
+    with torch.no_grad():
+        for i, (data, _) in enumerate(dloader):
+            data = data.to(device)
+            mu, logvar = model.encode(data)
+            z = model.reparameterize(mu, logvar)
+            codedData[i] = z
+
+    return codedData
+
+
+def loadDSfromFile(filename_root):
+    num_samples = 4 * 40
+
+    x_cols = ['x1','x2','x3','x4','x5','x6']
+
+    x_df = pd.read_csv(filename_root + "__x.csv", dtype=np.float32, names=x_cols)
+    xt_df = pd.read_csv(filename_root + "__x_time.csv", dtype=np.float32, names=['time'])
+    yt_df = pd.read_csv(filename_root + "__y_time.csv", dtype=np.float32, names=['time'])
+
+    x_combined_df = pd.concat([x_df, xt_df], axis=1)
+
+    flattened_data = np.array([x_combined_df[x_cols][i:i + num_samples].to_numpy().flatten() for i in range(int(len(x_combined_df) - num_samples))])
+
+    flattened_df = pd.DataFrame(data=flattened_data)
+    
+    flattened_t_df = pd.concat([flattened_df, xt_df[int(num_samples/2):-int(num_samples/2)].reset_index()], axis=1)
+
+    merged_df = pd.merge_asof(yt_df, flattened_t_df, on='time')
+
+    merged_df = merged_df.fillna(method='backfill')
+    
+    return torch.utils.data.TensorDataset(torch.tensor(merged_df.drop(['time','index'], axis=1).values),torch.tensor(merged_df.drop(['time','index'], axis=1).values))
 
 
 # FOR INFERENCE
@@ -84,9 +130,46 @@ def getModel(start_probs, trans_probs, obs_means, obs_vars):
     return model
 
 
-labeledData = getTestDf()
+training_dir = get_training_dir()
+dataset = GaitData(dirpath=training_dir)
+idx = list(range(len(dataset)))
+train_data = data.Subset(dataset, idx[:int(len(dataset)*0.8)])
+test_data = data.Subset(dataset, idx[int(len(dataset)*0.8):])
+
+X = pd.DataFrame(data=getEncodedData('300_epoch_basic.pt', train_data))
+
+y = pd.DataFrame(train_data.dataset.y[train_data.indices], columns=['y'])
+
+labeledData = pd.concat([X,y], axis=1)
+
+# labeledData = getTestDf()
 # labeledData = getCompressedDataWithLabels()
 (start_probs, trans_probs, obs_means, obs_vars) =  learnHmmParams(labeledData)
 model = getModel(start_probs, trans_probs, obs_means, obs_vars)
+
+# Train eval
+pred_y = model.decode(labeledData.drop('y', axis=1).to_numpy())[1]
+y = labeledData['y'].to_numpy()
+
+print(classification_report(y, pred_y))
+
+# Test eval
+# X = pd.DataFrame(data=getEncodedData('300_epoch_basic.pt', test_data))
+# y = pd.DataFrame(test_data.dataset.y[test_data.indices], columns=['y'])
+
+# labeledData = pd.concat([X,y], axis=1)
+
+# pred_y = model.decode(labeledData.drop('y', axis=1).to_numpy())[1]
+# y = labeledData['y'].to_numpy()
+
+# print(classification_report(y, pred_y))
+
+# Predict on Test set
+
+
+test_data = loadDSfromFile('./data/TestData/subject_009_01')
+X = getEncodedData('300_epoch_basic.pt', test_data)
+pred_y = model.decode(X)[1]
+
 pdb.set_trace()
-print(model.decode(labeledData.drop('y', axis=1).to_numpy()))
+

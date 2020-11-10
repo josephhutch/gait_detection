@@ -10,7 +10,7 @@ from torch.utils.data import Dataset, DataLoader
 import pdb
 from data_loaders import get_training_dataloader, get_test_dataloader, get_train_test_dataloaders
 from pathing import *
-from VAE import VAE, Latent3VAE
+from VAE import VAE, Latent3VAE, Hidden2VAE
 
 # Parse Args
 
@@ -43,7 +43,7 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 # Create Model
 
 # model = VAE().to(device)
-model = Latent3VAE().to(device)
+model = Hidden2VAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
 
@@ -134,4 +134,4 @@ if __name__ == "__main__":
     plt.ylabel('RMSE')
     plt.legend()
     plt.show()
-    torch.save(model, os.path.join(get_model_dir(), 'latent_test.pt'))
+    torch.save(model, os.path.join(get_model_dir(), 'big_test.pt'))

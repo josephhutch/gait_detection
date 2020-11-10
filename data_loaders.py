@@ -69,11 +69,14 @@ def get_training_dataloader(batch_size, kwargs):
             dataset, batch_size=batch_size, shuffle=True, **kwargs)
     return dataloader
 
-def get_train_test_dataloaders(batch_size, kwargs):
+def get_train_test_dataset():
     training_dir = get_training_dir()
     dataset = GaitData(dirpath=training_dir)
     lengths = [int(len(dataset)*0.8), int(len(dataset)*0.2)]
-    trainDS, testDS = random_split(dataset, lengths)
+    return random_split(dataset, lengths)
+
+def get_train_test_dataloaders(batch_size, kwargs):
+    trainDS, testDS = get_train_test_dataset
 
     trainloader = torch.utils.data.DataLoader(
             trainDS, batch_size=batch_size, shuffle=True, **kwargs)
