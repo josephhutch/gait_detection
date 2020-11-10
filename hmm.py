@@ -166,10 +166,14 @@ print(classification_report(y, pred_y))
 
 # Predict on Test set
 
+#__y_prediction.csv
+trials = ['./data/TestData/subject_009_01', './data/TestData/subject_010_01', './data/TestData/subject_011_01', './data/TestData/subject_012_01']
 
-test_data = loadDSfromFile('./data/TestData/subject_009_01')
-X = getEncodedData('300_epoch_basic.pt', test_data)
-pred_y = model.decode(X)[1]
+for t in trials:
+    test_data = loadDSfromFile(t)
+    X = getEncodedData('300_epoch_basic.pt', test_data)
+    pred_y = model.decode(X)[1]
+    pred_y_df = pd.DataFrame(data=pred_y)
+    pred_y_df.to_csv(t + '__y_prediction.csv', index=False, header=False)
 
-pdb.set_trace()
-
+print('success')
