@@ -76,7 +76,7 @@ def get_train_test_dataset():
     return random_split(dataset, lengths)
 
 def get_train_test_dataloaders(batch_size, kwargs):
-    trainDS, testDS = get_train_test_dataset
+    trainDS, testDS = get_train_test_dataset()
 
     trainloader = torch.utils.data.DataLoader(
             trainDS, batch_size=batch_size, shuffle=True, **kwargs)
