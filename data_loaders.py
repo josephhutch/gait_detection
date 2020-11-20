@@ -12,6 +12,7 @@ class GaitData(Dataset):
     def __init__(self, dirpath, limit=None):
         overlap = 0.2
         num_samples = 4 * 40  # 4seconds at 40Hz
+        overlap = int(num_samples * overlap)
 
         # Get all filenames for each file type (x, x_time, y, y_time)
         x_filenames = sorted(glob.glob(dirpath + "/*x.csv"))
@@ -44,8 +45,8 @@ class GaitData(Dataset):
         y_data = []
 
         for trial in data_df:
-            x_data.append(np.array([trial[x_cols][i*num_samples:i*num_samples + num_samples].to_numpy().flatten() for i in range(int(len(trial) / num_samples))]))
-            y_data.append(np.array([trial.at[i*num_samples+int(num_samples/2),'y'] for i in range(int(len(trial) / num_samples))]))
+            x_data.append(np.array([trial[x_cols][i*(num_samples-overlap):i*(num_samples-overlap) + num_samples].to_numpy().flatten() for i in range(int(len(trial) / (num_samples-overlap))-1)]))
+            y_data.append(np.array([trial.at[i*(num_samples-overlap)+int(num_samples/2),'y'] for i in range(int(len(trial) / (num_samples-overlap))-1)]))
 
         self.x = np.concatenate(x_data)
         self.y = np.concatenate(y_data)
@@ -72,7 +73,7 @@ def get_training_dataloader(batch_size, kwargs):
 def get_train_test_dataset():
     training_dir = get_training_dir()
     dataset = GaitData(dirpath=training_dir)
-    lengths = [int(len(dataset)*0.8), int(len(dataset)*0.2)]
+    lengths = [int(len(dataset)*0.8), len(dataset)-int(len(dataset)*0.8)]
     return random_split(dataset, lengths)
 
 def get_train_test_dataloaders(batch_size, kwargs):
