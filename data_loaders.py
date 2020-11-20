@@ -44,7 +44,7 @@ class GaitData(Dataset):
         y_data = []
 
         for trial in data_df:
-            x_data.append(np.array([trial[x_cols][i:i + num_samples].to_numpy().flatten() for i in range(int(len(trial) / num_samples))]))
+            x_data.append(np.array([trial[x_cols][i*num_samples:i*num_samples + num_samples].to_numpy().flatten() for i in range(int(len(trial) / num_samples))]))
             y_data.append(np.array([trial.at[i*num_samples+int(num_samples/2),'y'] for i in range(int(len(trial) / num_samples))]))
 
         self.x = np.concatenate(x_data)
