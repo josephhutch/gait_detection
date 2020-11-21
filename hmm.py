@@ -49,7 +49,7 @@ def getEncodedData(model_file, ds):
 
     return codedData
 
-
+# load data from test set. GaitData does not work since files are missing
 def loadDSfromFile(filename_root):
     num_samples = 4 * 40
 
@@ -123,8 +123,8 @@ def learnHmmParams(df):
 
 # initialize an HMM model for classification
 def getModel(start_probs, trans_probs, obs_means, obs_vars):
-    model = hmm.GaussianHMM(n_components=len(start_probs), covariance_type="diag")
-    model.startprob_ = start_probs
+    model = hmm.GaussianHMM(n_components=len(start_probs), covariance_type="diag")  # Initialize model
+    model.startprob_ = start_probs  # Load features
     model.transmat_ = trans_probs
     model.means_ = obs_means
     # model.covars_ = obs_vars+0.001 # if you get var can't be negative add small number
@@ -137,11 +137,11 @@ def getModel(start_probs, trans_probs, obs_means, obs_vars):
 training_dir = get_training_dir()
 dataset = GaitData(dirpath=training_dir)
 idx = list(range(len(dataset)))
-train_data = data.Subset(dataset, idx[:int(len(dataset)*0.8)])
-test_data = data.Subset(dataset, idx[int(len(dataset)*0.8):])
+train_data = data.Subset(dataset, idx[:int(len(dataset)*0.8)])  # Training split
+test_data = data.Subset(dataset, idx[int(len(dataset)*0.8):])  # Validation split
 
 # Get encoded features
-X = pd.DataFrame(data=getEncodedData('300_epoch_basic.pt', train_data))
+X = pd.DataFrame(data=getEncodedData('big_test.pt', train_data))
 # Labels
 y = pd.DataFrame(train_data.dataset.y[train_data.indices], columns=['y'])
 # Data for model
@@ -159,26 +159,25 @@ y = labeledData['y'].to_numpy()
 print(classification_report(y, pred_y))  # get training results
 
 # Test eval
-# X = pd.DataFrame(data=getEncodedData('300_epoch_basic.pt', test_data))
-# y = pd.DataFrame(test_data.dataset.y[test_data.indices], columns=['y'])
+X = pd.DataFrame(data=getEncodedData('big_test.pt', test_data))
+y = pd.DataFrame(test_data.dataset.y[test_data.indices], columns=['y'])
 
-# labeledData = pd.concat([X,y], axis=1)
+labeledData = pd.concat([X,y], axis=1)
 
-# pred_y = model.decode(labeledData.drop('y', axis=1).to_numpy())[1]
-# y = labeledData['y'].to_numpy()
+pred_y = model.decode(labeledData.drop('y', axis=1).to_numpy())[1]
+y = labeledData['y'].to_numpy()
 
-# print(classification_report(y, pred_y))
+print(classification_report(y, pred_y))
 
 # Predict on Test set
-
 #__y_prediction.csv
 trials = ['./data/TestData/subject_009_01', './data/TestData/subject_010_01', './data/TestData/subject_011_01', './data/TestData/subject_012_01']
 
 for t in trials:
     test_data = loadDSfromFile(t)
-    X = getEncodedData('300_epoch_basic.pt', test_data)
+    X = getEncodedData('big_test.pt', test_data)
     pred_y = model.decode(X)[1]
-    pred_y_df = pd.DataFrame(data=pred_y)
-    pred_y_df.to_csv(t + '__y_prediction.csv', index=False, header=False)
+    pred_y_df = pd.DataFrame(data=pred_y)  # Save predictions to data frame
+    pred_y_df.to_csv(t + '__y_prediction.csv', index=False, header=False)  # Save data frame to csv file to be submitted
 
 print('success')

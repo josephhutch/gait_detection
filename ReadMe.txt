@@ -7,6 +7,12 @@ features to classify the gait into 4 different classes.
 
 /data: This folder holds all of the training and testing data that is used in the project
 
+/data/TrainingData: This is where all the training data that is used to train the VAE and calculate probabilities
+for the HMM is stored.
+
+/data/TestData: This is where all of the test data is stored along with our predictions that the HMM has made for the
+test data.
+
 /models: This is where all trained VAE models are stored so that they can be used for the encoding process
 in the classification
 
@@ -18,7 +24,8 @@ no critical use its just a convienent place to store wanted images.
 data_loaders.py: The data loaders are what take our training/testing data from their csv files and then allow them
 to be easily used for training models, or evaluating metrics
 
-hmm.py: This is the file where the hmm classifier is built and used.
+hmm.py: This is the file where the hmm classifier is built. This file is also where we run our evaluations of
+it and run it on our training and testing data.
 
 main.py: This is the file that handles the training of the VAE models
 
