@@ -7,10 +7,10 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from pathing import get_training_dir, get_testing_dir
 import pdb
 
-
+# Dataset that handels loading of gait_data. Params: dirpath- path of data directory
 class GaitData(Dataset):
-    def __init__(self, dirpath, limit=None):
-        overlap = 0.2
+    def __init__(self, dirpath):
+        overlap = 0.2  # Time overlap between samples
         num_samples = 4 * 40  # 4seconds at 40Hz
         overlap = int(num_samples * overlap)
 
@@ -44,6 +44,7 @@ class GaitData(Dataset):
         x_data = []
         y_data = []
 
+        # append all trials into one master dataframe
         for trial in data_df:
             x_data.append(np.array([trial[x_cols][i*(num_samples-overlap):i*(num_samples-overlap) + num_samples].to_numpy().flatten() for i in range(int(len(trial) / (num_samples-overlap))-1)]))
             y_data.append(np.array([trial.at[i*(num_samples-overlap)+int(num_samples/2),'y'] for i in range(int(len(trial) / (num_samples-overlap))-1)]))
@@ -51,11 +52,11 @@ class GaitData(Dataset):
         self.x = np.concatenate(x_data)
         self.y = np.concatenate(y_data)
 
-
+    # get length of dataset
     def __len__(self):
         return (len(self.x))
 
-
+    # Get specific instance of data
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
@@ -63,6 +64,7 @@ class GaitData(Dataset):
         return (self.x[idx], self.y[idx])
 
 
+# get all of the data in the training folder without test/validation split
 def get_training_dataloader(batch_size, kwargs):
     training_dir = get_training_dir()
     dataset = GaitData(dirpath=training_dir)
@@ -70,12 +72,15 @@ def get_training_dataloader(batch_size, kwargs):
             dataset, batch_size=batch_size, shuffle=True, **kwargs)
     return dataloader
 
+# get all data from training folder and split into training and validation/testing sets
 def get_train_test_dataset():
     training_dir = get_training_dir()
     dataset = GaitData(dirpath=training_dir)
     lengths = [int(len(dataset)*0.8), len(dataset)-int(len(dataset)*0.8)]
     return random_split(dataset, lengths)
 
+
+# take the splits from previous function and input them into dataloaders
 def get_train_test_dataloaders(batch_size, kwargs):
     trainDS, testDS = get_train_test_dataset()
 
@@ -86,6 +91,7 @@ def get_train_test_dataloaders(batch_size, kwargs):
     return (trainloader, testloader)
 
 
+# Get data in testing folder. Note not functional Issues with missing label data. Use training data as validation
 def get_test_dataloader(batch_size, kwargs):
     test_dir = get_testing_dir()
     dataset = GaitData(dirpath=test_dir)

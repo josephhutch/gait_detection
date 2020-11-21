@@ -24,19 +24,21 @@ def getTestDf():
     df = pd.concat([dfNums,dfLabels], axis=1)
     return pd.concat([df,df])
 
+# Pass data through VAE to get encode features
 def getEncodedData(model_file, ds):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # load model
+    device = torch.device("cpu")
     model = load_model(model_file, device)
 
+    # get dataloader
     kwargs = {}
-
     dloader = torch.utils.data.DataLoader(
         ds, batch_size=1, shuffle=False, **kwargs)
 
     # pdb.set_trace()
 
+    # get features
     codedData = np.empty((len(ds), 20))
-
     model.eval()
     with torch.no_grad():
         for i, (data, _) in enumerate(dloader):
@@ -91,22 +93,22 @@ def learnHmmParams(df):
 
     df = df.copy()
 
-    y_vals = df['y'].unique()
+    y_vals = df['y'].unique()  # list of all possible labels
 
     df['y_next'] = df['y'].shift(-1)
 
     num_states = len(y_vals)
     num_feats = len(df.drop(['y','y_next'], axis=1).columns)
 
+    #initialize HMM states and probabilities
     start_probs = np.zeros(num_states)
     start_probs[0] = 1 # make the first state 0
     trans_probs = np.empty((num_states, num_states))
     obs_means = np.empty((num_states, num_feats))
     obs_vars = np.empty((num_states, num_feats)) # diagonal covar matrix
 
-
+    # calculate transition probabilities
     for i, y_i in enumerate(y_vals):
-        # Compute transition probs
         for j, y_j in enumerate(y_vals):
             num = ((df['y'] == y_i) & (df['y_next'] == y_j)).sum()
             denom = ((df['y'] == y_i) & (df['y_next'].notna())).sum()
@@ -119,7 +121,7 @@ def learnHmmParams(df):
 
     return (start_probs, trans_probs, obs_means, obs_vars)
 
-
+# initialize an HMM model for classification
 def getModel(start_probs, trans_probs, obs_means, obs_vars):
     model = hmm.GaussianHMM(n_components=len(start_probs), covariance_type="diag")
     model.startprob_ = start_probs
@@ -130,28 +132,31 @@ def getModel(start_probs, trans_probs, obs_means, obs_vars):
     return model
 
 
+# Call python hmm.py to run model
+# Get training/testing data
 training_dir = get_training_dir()
 dataset = GaitData(dirpath=training_dir)
 idx = list(range(len(dataset)))
 train_data = data.Subset(dataset, idx[:int(len(dataset)*0.8)])
 test_data = data.Subset(dataset, idx[int(len(dataset)*0.8):])
 
+# Get encoded features
 X = pd.DataFrame(data=getEncodedData('300_epoch_basic.pt', train_data))
-
+# Labels
 y = pd.DataFrame(train_data.dataset.y[train_data.indices], columns=['y'])
-
+# Data for model
 labeledData = pd.concat([X,y], axis=1)
 
 # labeledData = getTestDf()
 # labeledData = getCompressedDataWithLabels()
-(start_probs, trans_probs, obs_means, obs_vars) =  learnHmmParams(labeledData)
-model = getModel(start_probs, trans_probs, obs_means, obs_vars)
+(start_probs, trans_probs, obs_means, obs_vars) =  learnHmmParams(labeledData) # Calculate probabilities and states for HMM
+model = getModel(start_probs, trans_probs, obs_means, obs_vars)  # Initialize model
 
 # Train eval
 pred_y = model.decode(labeledData.drop('y', axis=1).to_numpy())[1]
 y = labeledData['y'].to_numpy()
 
-print(classification_report(y, pred_y))
+print(classification_report(y, pred_y))  # get training results
 
 # Test eval
 # X = pd.DataFrame(data=getEncodedData('300_epoch_basic.pt', test_data))
