@@ -8,11 +8,7 @@ import pdb
 import torch
 from torch.utils import data
 from sklearn.metrics import classification_report
-
-# POTENTIAL IMPROVEMENTS
-#   - Use MOG model for hmm instead of gaussian
-#   - Use full or tied covariance matrix
-#   - Improve data encoding (VAE)
+import matplotlib.pyplot as plt
 
 
 # for testing hmm implementation only
@@ -24,16 +20,15 @@ def getTestDf():
     df = pd.concat([dfNums,dfLabels], axis=1)
     return pd.concat([df,df])
 
+# Return encoded data from VAE from X values
 def getEncodedData(model_file, ds):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     model = load_model(model_file, device)
 
     kwargs = {}
 
     dloader = torch.utils.data.DataLoader(
         ds, batch_size=1, shuffle=False, **kwargs)
-
-    # pdb.set_trace()
 
     codedData = np.empty((len(ds), 20))
 
@@ -47,7 +42,7 @@ def getEncodedData(model_file, ds):
 
     return codedData
 
-
+# Return the dataset corresponding to a root filename
 def loadDSfromFile(filename_root):
     num_samples = 4 * 40
 
@@ -71,14 +66,6 @@ def loadDSfromFile(filename_root):
     
     return torch.utils.data.TensorDataset(torch.tensor(merged_df.drop(['time','index'], axis=1).values),torch.tensor(merged_df.drop(['time','index'], axis=1).values))
 
-
-# FOR INFERENCE
-# Same as above but return a dataframe with no 'y' column
-# to make predictions at the same frequency as the ground truth,
-#   we need to return a pandas dataframe with our compressed
-#   data at the desired frequency (if you want y predictions at 10Hz, give X's at 10Hz)
-def getCompressedData():
-    pass
 
 
 # Xs is a list of X (compressed experiment) ys is a list of y (labels for experiment)
@@ -120,6 +107,7 @@ def learnHmmParams(df):
     return (start_probs, trans_probs, obs_means, obs_vars)
 
 
+# Returns a trained HMM model given the configuration matricies
 def getModel(start_probs, trans_probs, obs_means, obs_vars):
     model = hmm.GaussianHMM(n_components=len(start_probs), covariance_type="diag")
     model.startprob_ = start_probs
@@ -129,44 +117,51 @@ def getModel(start_probs, trans_probs, obs_means, obs_vars):
     model.covars_ = obs_vars
     return model
 
+model_name = 'big3_test2.pt' # Model to use to encode the data
 
+# Load the training and test data for the HMM
 training_dir = get_training_dir()
 dataset = GaitData(dirpath=training_dir)
 idx = list(range(len(dataset)))
 train_data = data.Subset(dataset, idx[:int(len(dataset)*0.8)])
 test_data = data.Subset(dataset, idx[int(len(dataset)*0.8):])
 
-X = pd.DataFrame(data=getEncodedData('300_epoch_basic.pt', train_data))
-
+X = pd.DataFrame(data=getEncodedData(model_name, train_data))
 y = pd.DataFrame(train_data.dataset.y[train_data.indices], columns=['y'])
 
 labeledData = pd.concat([X,y], axis=1)
 
-# labeledData = getTestDf()
-# labeledData = getCompressedDataWithLabels()
+# Configure the HMM based on the training data
 (start_probs, trans_probs, obs_means, obs_vars) =  learnHmmParams(labeledData)
 model = getModel(start_probs, trans_probs, obs_means, obs_vars)
 
-# Train eval
+# Evaluate the hmm on the training data
 pred_y = model.decode(labeledData.drop('y', axis=1).to_numpy())[1]
 y = labeledData['y'].to_numpy()
 
 print(classification_report(y, pred_y))
 
-# Test eval
-# X = pd.DataFrame(data=getEncodedData('300_epoch_basic.pt', test_data))
-# y = pd.DataFrame(test_data.dataset.y[test_data.indices], columns=['y'])
+# Evaluate the hmm on the test data
+X = pd.DataFrame(data=getEncodedData(model_name, test_data))
+y = pd.DataFrame(test_data.dataset.y[test_data.indices], columns=['y'])
 
-# labeledData = pd.concat([X,y], axis=1)
+labeledData = pd.concat([X,y], axis=1)
 
-# pred_y = model.decode(labeledData.drop('y', axis=1).to_numpy())[1]
-# y = labeledData['y'].to_numpy()
+pred_y = model.decode(labeledData.drop('y', axis=1).to_numpy())[1]
+y = labeledData['y'].to_numpy()
 
-# print(classification_report(y, pred_y))
+print(classification_report(y, pred_y))
 
-# Predict on Test set
 
-#__y_prediction.csv
+# Plot the ground truth next to the predicted labels
+fig, ax = plt.subplots(nrows=2, ncols=1)
+ax[0].plot(y[80:160])
+ax[0].set_title('Ground Truth')
+ax[1].plot(pred_y[80:160])
+ax[1].set_title('Predicted Labels')
+plt.show()
+
+# Make predictions on Test data
 trials = ['./data/TestData/subject_009_01', './data/TestData/subject_010_01', './data/TestData/subject_011_01', './data/TestData/subject_012_01']
 
 for t in trials:
